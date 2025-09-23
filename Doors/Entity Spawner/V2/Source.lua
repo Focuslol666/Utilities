@@ -223,34 +223,34 @@ local defaultConfig = {
 	Death = {
 	    IsolationFloors = false,
 		Type = "Guiding", -- "Curious"
-		Hints = {"Death", "Hints", "Go", "Here"}, -- *Required!
+		Hints = {--[["Death", "Hints", "Go", "Here"]]},
         Cause = "",
         Floors = {
             Hotel = {
                 Type = "Guiding", -- "Curious"
-		        Hints = {"Death", "Hints", "Go", "Here"},
+		        Hints = {},
                 Cause = ""
             },
             Mines = {
                 Type = "Guiding", -- "Curious"
-		        Hints = {"Death", "Hints", "Go", "Here"},
+		        Hints = {},
                 Cause = ""
             }
         },
         Subfloors = {
             Backdoor = {
                 Type = "Curious", -- "Guiding"
-		        Hints = {"Death", "Hints", "Go", "Here"},
+		        Hints = {},
                 Cause = ""
             },
             Rooms = {
                 Type = "Curious", -- "Guiding"
-		        Hints = {"Death", "Hints", "Go", "Here"},
+		        Hints = {},
                 Cause = ""
             },
             Outdoors = {
                 Type = "Curious", -- "Guiding"
-		        Hints = {"Death", "Hints", "Go", "Here"},
+		        Hints = {},
                 Cause = ""
             }
         }

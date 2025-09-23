@@ -113,7 +113,7 @@
     Death = {
         IsolationFloors = false, -- If true, you can customize different death hints on each floors, otherwise default death hints will be used.
         Type = "Guiding", -- "Curious"
-        Hints = {"Death", "Hints", "Go", "Here"}, -- *Required!
+        Hints = {"Death", "Hints", "Go", "Here"},
         Cause = "",
         Floors = {
             Hotel = {
