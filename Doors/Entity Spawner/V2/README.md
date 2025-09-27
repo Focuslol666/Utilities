@@ -27,9 +27,9 @@
 - **[Crucifix](https://github.com/Focuslol666/Utilities/blob/patch-1/Doors/Entity%20Spawner/Crucifix.lua)**
 ## Modified
 ### Coming Soon
-- **Update Ignore Hiding Places**
-    - Have the entity ignore some of the hiding places and damage the player directly.
-        > You can select hiding places to ignore.
+- **Entity Respawn**
+    - Call `entity:Respawn()` after the `OnDespawned` callback is fired causes the entity to be respawned.
+        > This is not valid for Crucifixion.
 ### Released
 - **Updated Achievements**
     - You can give custom Prize to achievements.
