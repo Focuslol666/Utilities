@@ -53,7 +53,13 @@ local entity = spawner.Create({
 	Damage = {
 		Enabled = true,
 		Range = 40,
-		Amount = 125
+		Amount = 125,
+		Withered = false, -- If true, it take damages to MaxHealth (1~inf)
+		Random = {
+		    Enabled = false,
+		    Min = 1,
+		    Max = 200
+		}
 	},
 	Jumpscare = {
 	    Enabled = false,
@@ -185,6 +191,10 @@ end)
 
 entity:SetCallback("OnStartMoving", function()
     print("Entity has started moving")
+end)
+
+entity:SetCallback("OnReachNode", function(node)
+    print("Entity has reached node\nName: ".. node.Name.. "\nPosition: ".. node.Position)
 end)
 
 entity:SetCallback("OnEnterRoom", function(room, firstTime)
