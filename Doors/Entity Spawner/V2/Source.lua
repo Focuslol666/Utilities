@@ -17,7 +17,7 @@
                                                                     (Unofficial)
 ]]--
 
-if VynixuEntitySpawnerV2andFocusModified then return VynixuEntitySpawnerV2andFocusModified end
+if VynixuEntitySpawnerV2butFocusModified then return VynixuEntitySpawnerV2butFocusModified end
 
 -- Services
 local Players = game:GetService("Players")
@@ -74,7 +74,7 @@ local defaultPlayerAttributes = {
 local defaultDebug = {
 	OnSpawned = function() end,
 	OnStartMoving = function() end,
-	OnReachedNode = function() end,
+	OnReachNode = function() end,
 	OnEnterRoom = function() end,
 	OnLookAt = function() end,
 	OnRebounding = function() end,
@@ -98,7 +98,13 @@ local defaultConfig = {
 	Damage = {
 		Enabled = true,
 		Range = 40,
-		Amount = 125
+		Amount = 125,
+		Withered = false, -- If true, it take damages to MaxHealth (1~inf)
+		Random = {
+		    Enabled = false,
+		    Min = 1,
+		    Max = 200
+		}
 	},
 	Rebounding = {
 		Enabled = true,
@@ -439,7 +445,6 @@ function CrucifixEntity(entityTable, tool)
 	local config = entityTable.Config
 
 	local resist = config.Crucifixion.Resist
-    local stateResist = resist
 
     local crucifixAchievement = config.Achievements.Crucifix
 
@@ -471,7 +476,7 @@ function CrucifixEntity(entityTable, tool)
 	-- Setup
 	model:SetAttribute("BeingBanished", true)
 
-    task.spawn(entityTable.RunCallback, entityTable, "OnCrucified", stateResist) -- OnCrucified
+    task.spawn(entityTable.RunCallback, entityTable, "OnCrucified", resist) -- OnCrucified
 
 	local repentance = assets.Repentance:Clone()
 	local crucifix = repentance.Crucifix
@@ -727,7 +732,34 @@ function DamagePlayer(entityTable)
 	if localHum.Health > 0 and not PlayerIsProtected() then
 		local config = entityTable.Config
 		local deathAchievement = config.Achievements.Death
-		local newHealth = math.clamp(localHum.Health - config.Damage.Amount, 0, localHum.MaxHealth)
+		
+		local damageAmount;
+		
+		if config.Damage.Random.Enabled then
+			damageAmount = math.random(config.Damage.Random.Min, config.Damage.Random.Max)
+		else
+			damageAmount = config.Damage.Amount
+		end
+		
+		damageAmount = math.max(0, damageAmount)
+		
+		local newHealth;
+		
+		if config.Damage.Withered then
+			damageAmount = math.max(1, damageAmount)
+			
+			local newMaxHealth = math.max(0, localHum.MaxHealth - damageAmount)
+			localHum.MaxHealth = newMaxHealth
+			
+			if localHum.Health > newMaxHealth then
+				localHum.Health = newMaxHealth
+			end
+			
+			newHealth = localHum.Health
+		else
+			newHealth = math.clamp(localHum.Health - damageAmount, 0, localHum.MaxHealth)
+			localHum.Health = newHealth
+		end
 
 	    if newHealth == 0 then
 	        localPlayer:SetAttribute("Alive", false)
@@ -812,9 +844,7 @@ function DamagePlayer(entityTable)
 			gameStats["Player_".. localPlayer.Name].Total.DeathCause.Value = deathCause
 		end
 
-		-- Update health
-		localHum.Health = newHealth
-		task.spawn(entityTable.RunCallback, entityTable, "OnDamagePlayer", newHealth) -- OnDamagePlayer
+		task.spawn(entityTable.RunCallback, entityTable, "OnDamagePlayer", newHealth, damageAmount, config.Damage.Withered) -- OnDamagePlayer
 	end
 end
 
@@ -1443,5 +1473,5 @@ if not vynixu_SpawnerLoaded then
 end
 
 -- Return spawner
-getgenv().VynixuEntitySpawnerV2andFocusModified = spawner
+getgenv().VynixuEntitySpawnerV2butFocusModified = spawner
 return spawner
