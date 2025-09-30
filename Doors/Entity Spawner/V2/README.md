@@ -31,6 +31,29 @@
     - Call `entity:Respawn()` after the `OnDespawned` callback is fired causes the entity to be respawned.
         > This is not valid for Crucifixion.
 ### Released
+- **Updated Damage**
+    - **Withered**: If true, it take damages to MaxHealth.
+        > Minimum is 1; Maximum is Inf.
+    ```luau
+    Damage = {
+        -- Others...
+        Amount = 20, -- damage to MaxHealth
+        Withered = true,
+        -- Others...
+	}
+    ```
+   - **Random**: If enabled, a random number is taken between Min & Max to take damages.
+    ```luau
+    Damage = {
+        -- Others...
+        Random = {
+            Enabled = true,
+            Min = 1,
+            Max = 200
+        }
+	}
+    ```
+---
 - **Updated Achievements**
     - You can give custom Prize to achievements.
     ```luau
