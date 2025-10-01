@@ -82,6 +82,8 @@ local defaultDebug = {
 	OnDespawned = function() end,
 	OnDamagePlayer = function() end,
 	OnCrucified = function() end,
+	OnRespawning = function() end,
+	OnRespawned = function() end,
 	CrucifixionOverwrite = ""
 }
 local defaultConfig = {
@@ -1087,6 +1089,12 @@ spawner.Create = function(config)
 			Model = entityModel,
 			Config = config,
 			Debug = CloneTable(defaultDebug),
+			_respawnData = {
+				lastPosition = nil,
+				lastRoom = nil,
+				wasNormalDespawn = false,
+				originalReversed = config.Movement.Reversed
+			},
 			SetCallback = function(self, key, callback)
 				if self.Debug[key] then
 					if typeof(callback) == "function" then
@@ -1112,8 +1120,17 @@ spawner.Create = function(config)
 					self.Model:SetAttribute("Paused", bool)
 				end
 			end,
-			Despawn = function(self)
+			Despawn = function(self, skipDespawningCallback)
 				if self.Model then
+					if not skipDespawningCallback then
+						task.spawn(self.RunCallback, self, "OnDespawning") -- OnDespawning
+						self._respawnData.lastPosition = self.Model:GetPivot()
+						self._respawnData.lastRoom = self.Model:GetAttribute("LastEnteredRoom")
+						self._respawnData.wasNormalDespawn = true
+					else
+						self._respawnData.wasNormalDespawn = false
+					end
+					
 					self.Model:Destroy()
 					self.Model = nil
 					task.spawn(self.RunCallback, self, "OnDespawned") -- OnDespawned
@@ -1122,6 +1139,108 @@ spawner.Create = function(config)
                         UnlockAchievement(surviveAchievement)
                     end
 				end
+			end,
+			Respawn = function(self, delay)
+				if self.Model and self.Model.Parent then
+					warn("Cannot respawn entity: Entity is still alive.")
+					return false
+				end
+				
+				delay = delay or 0
+				
+				task.spawn(self.RunCallback, self, "OnRespawning") -- OnRespawning
+				
+				local success, newModel = pcall(function()
+					local asset = self.Config.Entity.Asset
+					if typeof(asset) == "Instance" and asset:IsA("Model") then
+						return asset:Clone()
+					elseif typeof(asset) == "string" then
+						return LoadCustomInstance(asset)
+					end
+				end)
+				
+				if not success or not newModel then
+					warn("Failed to load entity model for respawn.")
+					return false
+				end
+				
+				local root = newModel.PrimaryPart or newModel:FindFirstChildWhichIsA("BasePart")
+				if root then
+					root.Anchored = true
+					newModel.PrimaryPart = root
+					newModel.Name = self.Config.Entity.Name
+					
+					for name, value in defaultEntityAttributes do
+						newModel:SetAttribute(name, value)
+					end
+					
+					if self._respawnData.wasNormalDespawn then
+						local latestRoom = gameData.LatestRoom.Value
+						local nextRoom = workspace.CurrentRooms:FindFirstChild(tostring(latestRoom + 1))
+						
+						if nextRoom then
+							local pathfindNodes = nextRoom:FindFirstChild("PathfindNodes")
+							if pathfindNodes then
+								local node1 = pathfindNodes:FindFirstChild("1")
+								if node1 then
+									newModel:PivotTo(node1.CFrame + Vector3.new(0, self.Config.Entity.HeightOffset, 0))
+									
+									if self.Config.Movement.Reversed then
+										self.Config.Movement.Reversed = false
+									end
+								else
+									warn("Node '1' not found in PathfindNodes, using original position.")
+									newModel:PivotTo(self._respawnData.lastPosition)
+								end
+							else
+								warn("PathfindNodes not found in room, using original position.")
+								newModel:PivotTo(self._respawnData.lastPosition)
+							end
+						else
+							warn("Next room not found, using original position.")
+							newModel:PivotTo(self._respawnData.lastPosition)
+						end
+					else
+						newModel:PivotTo(self._respawnData.lastPosition)
+						self.Config.Movement.Reversed = self._respawnData.originalReversed
+					end
+					
+					if self._respawnData.lastRoom then
+						newModel:SetAttribute("LastEnteredRoom", self._respawnData.lastRoom)
+					end
+					
+					-- RoomsEntered folder
+					local f = Instance.new("Configuration")
+					f.Name = "RoomsEntered"
+					f.Parent = newModel
+				end
+				
+				self.Model = newModel
+				self.Model.Parent = workspace
+				
+				self._respawnData.wasNormalDespawn = false
+				
+				if delay > 0 then
+					self.Model:SetAttribute("Paused", true)
+					
+					task.spawn(function()
+						local startTime = tick()
+						while tick() - startTime < delay do
+							task.wait()
+						end
+						
+						self.Model:SetAttribute("Paused", false)
+						
+						task.spawn(self.RunCallback, self, "OnRespawned") -- OnRespawned
+						
+						self:Run()
+					end)
+				else
+					task.spawn(self.RunCallback, self, "OnRespawned") -- OnRespawned
+					self:Run()
+				end
+				
+				return true
 			end
 		}
 		
@@ -1435,9 +1554,14 @@ spawner.Run = function(entityTable)
 				-- Despawning
 				if not model:GetAttribute("Despawning") then
 					model:SetAttribute("Despawning", true)
+					
+					entityTable._respawnData.lastPosition = model:GetPivot()
+					entityTable._respawnData.lastRoom = model:GetAttribute("LastEnteredRoom")
+					entityTable._respawnData.originalReversed = config.Movement.Reversed
+					
 					task.spawn(entityTable.RunCallback, entityTable, "OnDespawning") -- OnDespawning
 					EntityMoveTo(model, model:GetPivot() - Vector3.new(0, 300, 0), config.Movement.Speed)
-					entityTable:Despawn()
+					entityTable:Despawn(true)
 				end
 			end)
 		end
