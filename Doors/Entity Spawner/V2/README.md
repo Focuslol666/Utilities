@@ -18,7 +18,64 @@
 ## Fixed
 - **Vynixu's Entity Spawner V2** was unusable because of **The Great Outdoors Update**, and I fixed it.
     - **Path Error Fixed**: `ClientModules` folder name changed to `ModulesClient`.
-    - **Crucifixion Bug Fixed**: Entity are also removed when `Resist` is enabled.
+    ```luau
+    -- Before Fixing
+    local moduleScripts = {
+        Module_Events = require(ReplicatedStorage.ClientModules.Module_Events),
+        -- Others...
+    }
+    -- After Fixing
+    local moduleScripts = {
+        Module_Events = require(ReplicatedStorage.ModulesClient.Module_Events),
+        -- Others...
+    }
+    ```
+- **Original Bugs**
+    - **Callback Bug Fixed**: `OnReachNode` callback is misspelled as `OnReachedNode`
+    ```luau
+    -- Before Fixing
+    local defaultDebug = {
+        -- Others...
+        OnReachedNode = function() end,
+        -- Others...
+    }
+    -- After Fixing
+    local defaultDebug = {
+        -- Others...
+        OnReachNode = function() end,
+        -- Others...
+    }
+    
+    -- For Example
+    entity:SetCallback("OnReachNode", function(node)
+        print("Entity has reached node, Position: ".. node.Position)
+    end)
+    ```
+   - **Crucifixion Bug Fixed**: Entity are also removed when `Resist` is enabled.
+    ```luau
+    -- Before Fixing
+    function CrucifixEntity(entityTable, tool)
+        -- Others...
+        task.spawn(function()
+            -- Others...
+            model:Destroy()
+            -- Others...
+        end)
+        -- Others...
+	end
+    -- After Fixing
+    function CrucifixEntity(entityTable, tool)
+        -- Others...
+        task.spawn(function()
+            -- Others...
+            if resist == false then
+                model:Destroy()
+            end
+            -- Others...
+        end)
+        -- Others...
+	end
+    ```
 ## Assets
 - **[Entity Spawner Source](https://github.com/Focuslol666/Utilities/blob/patch-1/Doors/Entity%20Spawner/V2/Source.lua)**
 - **[Entity Spawner Example](https://github.com/Focuslol666/Utilities/blob/patch-1/Doors/Entity%20Spawner/V2/Example.lua)**
@@ -27,31 +84,28 @@
 - **[Crucifix](https://github.com/Focuslol666/Utilities/blob/patch-1/Doors/Entity%20Spawner/Crucifix.lua)**
 ## Modified
 ### Coming Soon
-- **Entity Respawn**
-    - Call `entity:Respawn()` after the `OnDespawned` callback is fired causes the entity to be respawned.
-        > This is not valid for Crucifixion.
+- **Following Player is Back**
+    - The entity will following the player's movements (similar to `A-120`)
 ### Released
-- **Updated Damage**
-    - **Withered**: If true, it take damages to MaxHealth.
-        > Minimum is 1; Maximum is Inf.
+- **Entity Respawn** (Incomplete)
+    - Call `entity:Respawn(delay: number)` after the `OnDespawned` callback is fired causes the entity to be respawned.
+        > This is not valid for Crucifixion.
     ```luau
-    Damage = {
-        -- Others...
-        Amount = 20, -- damage to MaxHealth
-        Withered = true,
-        -- Others...
-	}
+    -- For Example
+    entity:Respawn(5) -- Wait for 5s before respawned
+    entity:Respawn() -- Respawn directly without waiting
     ```
-   - **Random**: If enabled, a random number is taken between Min & Max to take damages.
+   - Added new callback: `OnRespawning` & `OnRespawned`
     ```luau
-    Damage = {
-        -- Others...
-        Random = {
-            Enabled = true,
-            Min = 1,
-            Max = 200
-        }
-	}
+    -- OnRespawning
+    entity:SetCallback("OnRespawning", function()
+        print("Entity is respawning")
+    end)
+
+    -- OnRespawned
+    entity:SetCallback("OnRespawned", function()
+        print("Entity has respawned")
+    end)
     ```
 ---
 - **Updated Achievements**
@@ -171,7 +225,7 @@
     ```
 ---
 - **Added Crucified Callback**
-    - This callback is triggered when the entity is crucified.
+    - This callback is fired when the entity is crucified.
     - You can use `entity:SetCallback()` to customize the callback function.
     ```luau
     entity:SetCallback("OnCrucified", function(stateResist)
