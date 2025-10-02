@@ -95,7 +95,11 @@ local defaultConfig = {
 	Movement = {
 		Speed = 100,
 		Delay = 2,
-		Reversed = false
+		Reversed = false,
+		Following = {
+		    Enabled = false,
+		    Speed = 100
+		}
 	},
 	Damage = {
 		Enabled = true,
@@ -1095,6 +1099,12 @@ spawner.Create = function(config)
 				wasNormalDespawn = false,
 				originalReversed = config.Movement.Reversed
 			},
+			_followingData = {
+				originalNodePositions = {},
+				currentRoomNodes = {},
+				roomChangedConnection = nil,
+				isFollowing = false
+			},
 			SetCallback = function(self, key, callback)
 				if self.Debug[key] then
 					if typeof(callback) == "function" then
@@ -1131,6 +1141,23 @@ spawner.Create = function(config)
 						self._respawnData.wasNormalDespawn = false
 					end
 					
+					if self._followingData then
+						for node, originalCF in pairs(self._followingData.originalNodePositions) do
+							if node.Parent then
+								node.CFrame = originalCF
+							end
+						end
+						
+						self._followingData.originalNodePositions = {}
+						self._followingData.currentRoomNodes = {}
+						self._followingData.isFollowing = false
+						
+						if self._followingData.roomChangedConnection then
+							self._followingData.roomChangedConnection:Disconnect()
+							self._followingData.roomChangedConnection = nil
+						end
+					end
+					
 					self.Model:Destroy()
 					self.Model = nil
 					task.spawn(self.RunCallback, self, "OnDespawned") -- OnDespawned
@@ -1149,6 +1176,16 @@ spawner.Create = function(config)
 				delay = delay or 0
 				
 				task.spawn(self.RunCallback, self, "OnRespawning") -- OnRespawning
+				
+				if self._followingData then
+					self._followingData.originalNodePositions = {}
+					self._followingData.currentRoomNodes = {}
+					self._followingData.isFollowing = false
+					if self._followingData.roomChangedConnection then
+						self._followingData.roomChangedConnection:Disconnect()
+						self._followingData.roomChangedConnection = nil
+					end
+				end
 				
 				local success, newModel = pcall(function()
 					local asset = self.Config.Entity.Asset
@@ -1440,15 +1477,103 @@ spawner.Run = function(entityTable)
 			
 			-- Pathfinding
 			task.spawn(function()
+				local function setupFollowing()
+					if config.Movement.Following.Enabled and config.Movement.Following.Speed > 0 then
+						entityTable._followingData.isFollowing = true
+						
+						local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(localPlayer:GetAttribute("CurrentRoom")))
+						if currentRoom then
+							local pathfindNodes = currentRoom:FindFirstChild("PathfindNodes")
+							if pathfindNodes then
+								entityTable._followingData.originalNodePositions = {}
+								entityTable._followingData.currentRoomNodes = {}
+								
+								for _, node in ipairs(pathfindNodes:GetChildren()) do
+									if node:IsA("BasePart") then
+										entityTable._followingData.originalNodePositions[node] = node.CFrame
+										entityTable._followingData.currentRoomNodes[node] = true
+										node.CFrame = CFrame.new(localChar.HumanoidRootPart.Position)
+									end
+								end
+								
+								if not entityTable._followingData.roomChangedConnection then
+									entityTable._followingData.roomChangedConnection = localPlayer:GetAttributeChangedSignal("CurrentRoom"):Connect(function()
+										for node, originalCF in pairs(entityTable._followingData.originalNodePositions) do
+											if node.Parent then
+												node.CFrame = originalCF
+											end
+										end
+										
+										entityTable._followingData.originalNodePositions = {}
+										entityTable._followingData.currentRoomNodes = {}
+										
+										if entityTable._followingData.isFollowing then
+											local newRoom = workspace.CurrentRooms:FindFirstChild(tostring(localPlayer:GetAttribute("CurrentRoom")))
+											if newRoom then
+												local newPathfindNodes = newRoom:FindFirstChild("PathfindNodes")
+												if newPathfindNodes then
+													for _, node in ipairs(newPathfindNodes:GetChildren()) do
+														if node:IsA("BasePart") then
+															entityTable._followingData.originalNodePositions[node] = node.CFrame
+															entityTable._followingData.currentRoomNodes[node] = true
+															node.CFrame = CFrame.new(localChar.HumanoidRootPart.Position)
+														end
+													end
+												end
+											end
+										end
+									end)
+								end
+							end
+						end
+					end
+				end
+
+				local function cleanupFollowing()
+					entityTable._followingData.isFollowing = false
+					
+					for node, originalCF in pairs(entityTable._followingData.originalNodePositions) do
+						if node.Parent then
+							node.CFrame = originalCF
+						end
+					end
+					
+					entityTable._followingData.originalNodePositions = {}
+					entityTable._followingData.currentRoomNodes = {}
+					
+					if entityTable._followingData.roomChangedConnection then
+						entityTable._followingData.roomChangedConnection:Disconnect()
+						entityTable._followingData.roomChangedConnection = nil
+					end
+				end
+
+				local function checkNodeReachedInFollowing(model, node)
+					if not entityTable._followingData.isFollowing then
+						return false
+					end
+					
+					local distance = (model:GetPivot().Position - node.Position).Magnitude
+					return distance < 2
+				end
+
+				setupFollowing()
+				
 				local reboundType = config.Rebounding.Type:lower()
 				if reboundType == "blitz" then
 					-- Blitz rebounding
 					local nodesToCurrent, nodesToEnd = GetPathfindNodesBlitz(config)
-	
+					
+					local movementSpeed = config.Movement.Following.Enabled and config.Movement.Following.Speed > 0 and config.Movement.Following.Speed or config.Movement.Speed
+
 					for _, n in nodesToCurrent do
 						local cframe = n.CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
-						EntityMoveTo(model, cframe, config.Movement.Speed, config, entityTable)
+						EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 						task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
+						
+						if entityTable._followingData.isFollowing and checkNodeReachedInFollowing(model, n) then
+							cleanupFollowing()
+							break
+						end
 					end
 					
 					-- Rebounding handling
@@ -1482,7 +1607,7 @@ spawner.Run = function(entityTable)
 							local nodeIndex = tonumber(randomNode.Name)
 							for i = #roomNodes, nodeIndex, -1 do
 								local cframe = roomNodes[math.clamp(i, 1, #roomNodes)].CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
-								EntityMoveTo(model, cframe, config.Movement.Speed, config, entityTable)
+								EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 								task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
 							end
 							
@@ -1492,7 +1617,7 @@ spawner.Run = function(entityTable)
 		
 							for i = nodeIndex, #roomNodes, 1 do
 								local cframe = roomNodes[math.clamp(i, 1, #roomNodes)].CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
-								EntityMoveTo(model, cframe, config.Movement.Speed, config, entityTable)
+								EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 								task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
 							end
 						end
@@ -1501,16 +1626,24 @@ spawner.Run = function(entityTable)
 					local _, updatedToEnd = GetPathfindNodesBlitz(config)
 					for _, n in updatedToEnd do
 						local cframe = n.CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
-						EntityMoveTo(model, cframe, config.Movement.Speed, config, entityTable)
+						EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 						task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
 					end
 				else
 					-- Ambush rebounding
 					local pathfindNodes = GetPathfindNodesAmbush(config)
+					
+					local movementSpeed = config.Movement.Following.Enabled and config.Movement.Following.Speed > 0 and config.Movement.Following.Speed or config.Movement.Speed
+
 					for _, n in pathfindNodes do
 						local cframe = n.CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
-						EntityMoveTo(model, cframe, config.Movement.Speed, config, entityTable)
+						EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 						task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
+						
+						if entityTable._followingData.isFollowing and checkNodeReachedInFollowing(model, n) then
+							cleanupFollowing()
+							break
+						end
 					end
 					
 					-- Rebounding handling
@@ -1524,7 +1657,7 @@ spawner.Run = function(entityTable)
 							-- Run backwards through nodes
 							for i = #pathfindNodes, 1, -1 do
 								local cframe = pathfindNodes[i].CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
-								EntityMoveTo(model, cframe, config.Movement.Speed, config, entityTable)
+								EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 								task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
 							end
 	
@@ -1537,7 +1670,7 @@ spawner.Run = function(entityTable)
 							-- Run forwards through nodes
 							for _, n in pathfindNodes do
 								local cframe = n.CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
-								EntityMoveTo(model, cframe, config.Movement.Speed, config, entityTable)
+								EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 								task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
 							end
 	
