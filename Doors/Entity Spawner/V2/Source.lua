@@ -89,7 +89,7 @@ local defaultDebug = {
 local defaultConfig = {
 	Entity = {
 		Name = "Template Entity",
-		Asset = "https://github.com/RegularVynixu/Utilities/blob/main/Doors%20Entity%20Spawner/Models/Rush.rbxm?raw=true",
+		Asset = "https://github.com/RegularVynixu/Utilities/blob/patch-1/Doors%20Entity%20Spawner/Models/Rush.rbxm?raw=true",
 		HeightOffset = 0
 	},
 	Movement = {
@@ -103,6 +103,7 @@ local defaultConfig = {
 	},
 	Damage = {
 		Enabled = true,
+		Killed = false,
 		Range = 40,
 		Amount = 125,
 		Withered = false, -- If true, it take damages to MaxHealth (1~inf)
@@ -740,6 +741,15 @@ function DamagePlayer(entityTable)
 		local deathAchievement = config.Achievements.Death
 		
 		local damageAmount;
+		
+		if config.Damage.Killed then
+		    if replicatesignal then
+		        replicatesignal(localPlayer.Kill)
+		    else
+		        localHum.Health = 0
+		        warn("replicatesignal not supported, set health.")
+		    end
+		end
 		
 		if config.Damage.Random.Enabled then
 			damageAmount = math.random(config.Damage.Random.Min, config.Damage.Random.Max)
