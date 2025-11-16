@@ -7,7 +7,7 @@ local spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/Focus
 local entity = spawner.Create({
 	Entity = {
 		Name = "Blitz Example",
-		Asset = "https://github.com/RegularVynixu/Utilities/raw/main/Doors/Entity%20Spawner/Assets/Entities/BackdoorRush.rbxm",
+		Asset = "https://github.com/RegularVynixu/Utilities/raw/patch-1/Doors/Entity%20Spawner/Assets/Entities/BackdoorRush.rbxm",
 		HeightOffset = 0
 	},
 	Lights = {
@@ -52,6 +52,7 @@ local entity = spawner.Create({
 	},
 	Damage = {
 		Enabled = true,
+		Killed = false,
 		Range = 40,
 		Amount = 125,
 		Withered = false,
@@ -73,7 +74,7 @@ local entity = spawner.Create({
 	},
 	Achievements = {
 	    Survive = {
-	        Enabled = true,
+	        Enabled = false,
 	        Once = false,
 	        Title = "Survive Title",
 	        Desc = "Survive Description",
@@ -96,11 +97,11 @@ local entity = spawner.Create({
 	    },
 	    Crucifix = {
 	        Enabled = true,
-	        Once = true,
-	        Title = "Crucifix Title",
-	        Desc = "Crucifix Description",
-	        Reason = "Crucifix Reason",
-	        Image = "rbxassetid://12309073114",
+	        Once = false,
+	        Title = "Red Light",
+	        Desc = "Blue light!",
+	        Reason = "Use a Crucifix against Blitz.",
+	        Image = "rbxassetid://95971360557266",
 	        Prize = {
                 Revives = {
                     Visible = false,
@@ -111,7 +112,7 @@ local entity = spawner.Create({
                     Amount = 100
                 },
                 Stardust = {
-                    Visible = true,
+                    Visible = false,
                     Amount = 20
                 }
             }
@@ -148,34 +149,34 @@ local entity = spawner.Create({
 	},
 	Death = {
 	    IsolationFloors = true,
-		Type = "Guiding", -- "Curious"
-		Hints = {"Death", "Hints", "Go", "Here"}, -- *Required!
+		Type = "Guiding",
+		Hints = {"Death", "Hints", "Go", "Here"},
         Cause = "",
         Floors = {
             Hotel = {
-                Type = "Guiding", -- "Curious"
+                Type = "Guiding",
 		        Hints = {"You died to Blitz.", "It looks like Rush, but it may rebounds.", "Please pay attention to the flicker lights and hide as soon as possible.", "Good luck!"},
                 Cause = ""
             },
             Mines = {
-                Type = "Guiding", -- "Curious"
+                Type = "Guiding",
 		        Hints = {"You died to Blitz.", "It looks like Rush, but it may rebounds.", "Please pay attention to the flicker lights and hide as soon as possible.", "Good luck!"},
                 Cause = ""
             }
         },
         Subfloors = {
             Backdoor = {
-                Type = "Curious", -- "Guiding"
+                Type = "Curious",
 		        Hints = {"Oh... Hello.", "I didn't expect to see you here.", "Let's see what you died to.", "Oh, one of my favorites.", "She said we should call that one Blitz.", "Well... I'll see you later, right? You'll come back?", "Haha... of course you will."},
                 Cause = ""
             },
             Rooms = {
-                Type = "Curious", -- "Guiding"
+                Type = "Curious",
 		        Hints = {"Oh... Hello.", "I didn't expect to see you here.", "Let's see what you died to.", "Oh, one of my favorites.", "She said we should call that one Blitz.", "Well... I'll see you later, right? You'll come back?", "Haha... of course you will."},
                 Cause = ""
             },
             Outdoors = {
-                Type = "Curious", -- "Guiding"
+                Type = "Curious",
 		        Hints = {"Oh... Hello.", "I didn't expect to see you here.", "Let's see what you died to.", "Oh, one of my favorites.", "She said we should call that one Blitz.", "Well... I'll see you later, right? You'll come back?", "Haha... of course you will."},
                 Cause = ""
             }

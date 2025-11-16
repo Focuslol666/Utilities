@@ -7,7 +7,7 @@ local spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/Focus
 local entity = spawner.Create({
 	Entity = {
 		Name = "Template Entity",
-		Asset = "https://github.com/RegularVynixu/Utilities/raw/main/Doors/Entity%20Spawner/Assets/Entities/Rush.rbxm",
+		Asset = "https://github.com/RegularVynixu/Utilities/raw/patch-1/Doors/Entity%20Spawner/Assets/Entities/Rush.rbxm",
 		HeightOffset = 0
 	},
 	Lights = {
@@ -52,6 +52,7 @@ local entity = spawner.Create({
 	},
 	Damage = {
 		Enabled = true,
+		Killed = false,
 		Range = 40,
 		Amount = 125,
 		Withered = false, -- If true, it take damages to MaxHealth (1~inf)
@@ -75,10 +76,10 @@ local entity = spawner.Create({
 	    Survive = {
 	        Enabled = true,
 	        Once = false,
-	        Title = "Survive Title",
-	        Desc = "Survive Description",
-	        Reason = "Survive Reason",
-	        Image = "rbxassetid://12309073114",
+	        Title = "Out Of My Way",
+	        Desc = "I'm walkin' here!",
+	        Reason = "Successfully survive Rush.",
+	        Image = "rbxassetid://10546856417",
 	        Prize = {
                 Revives = {
                     Visible = true,
@@ -97,10 +98,10 @@ local entity = spawner.Create({
 	    Crucifix = {
 	        Enabled = true,
 	        Once = true,
-	        Title = "Crucifix Title",
-	        Desc = "Crucifix Description",
-	        Reason = "Crucifix Reason",
-	        Image = "rbxassetid://12309073114",
+	        Title = "Stay Out Of My Way",
+	        Desc = "You're not that guy, pal.",
+	        Reason = "Use a Crucifix against Rush.",
+	        Image = "rbxassetid://12307726692",
 	        Prize = {
                 Revives = {
                     Visible = true,
@@ -191,10 +192,6 @@ end)
 
 entity:SetCallback("OnStartMoving", function()
     print("Entity has started moving")
-end)
-
-entity:SetCallback("OnReachNode", function(node)
-    print("Entity has reached node\nName: ".. node.Name.. "\nPosition: ".. node.Position)
 end)
 
 entity:SetCallback("OnEnterRoom", function(room, firstTime)

@@ -82,8 +82,6 @@ local defaultDebug = {
 	OnDespawned = function() end,
 	OnDamagePlayer = function() end,
 	OnCrucified = function() end,
-	OnRespawning = function() end,
-	OnRespawned = function() end,
 	CrucifixionOverwrite = ""
 }
 local defaultConfig = {
@@ -95,11 +93,7 @@ local defaultConfig = {
 	Movement = {
 		Speed = 100,
 		Delay = 2,
-		Reversed = false,
-		Following = {
-		    Enabled = false,
-		    Speed = 100
-		}
+		Reversed = false
 	},
 	Damage = {
 		Enabled = true,
@@ -231,7 +225,12 @@ local defaultConfig = {
 		Enabled = true,
 		Range = 40,
 		Resist = false,
-		Break = true
+		Break = true,
+		Tool = {
+		    Name = "Crucifix",
+		    EffectGuiding = Color3.fromRGB(137, 207, 255),
+		    EffectCurious = Color3.fromRGB(253, 255, 133)
+		}
 	},
 	Death = {
 	    IsolationFloors = false,
@@ -742,15 +741,6 @@ function DamagePlayer(entityTable)
 		
 		local damageAmount;
 		
-		if config.Damage.Killed then
-		    if replicatesignal then
-		        replicatesignal(localPlayer.Kill)
-		    else
-		        localHum.Health = 0
-		        warn("replicatesignal not supported, set health.")
-		    end
-		end
-		
 		if config.Damage.Random.Enabled then
 			damageAmount = math.random(config.Damage.Random.Min, config.Damage.Random.Max)
 		else
@@ -1103,18 +1093,6 @@ spawner.Create = function(config)
 			Model = entityModel,
 			Config = config,
 			Debug = CloneTable(defaultDebug),
-			_respawnData = {
-				lastPosition = nil,
-				lastRoom = nil,
-				wasNormalDespawn = false,
-				originalReversed = config.Movement.Reversed
-			},
-			_followingData = {
-				originalNodePositions = {},
-				currentRoomNodes = {},
-				roomChangedConnection = nil,
-				isFollowing = false
-			},
 			SetCallback = function(self, key, callback)
 				if self.Debug[key] then
 					if typeof(callback) == "function" then
@@ -1144,28 +1122,6 @@ spawner.Create = function(config)
 				if self.Model then
 					if not skipDespawningCallback then
 						task.spawn(self.RunCallback, self, "OnDespawning") -- OnDespawning
-						self._respawnData.lastPosition = self.Model:GetPivot()
-						self._respawnData.lastRoom = self.Model:GetAttribute("LastEnteredRoom")
-						self._respawnData.wasNormalDespawn = true
-					else
-						self._respawnData.wasNormalDespawn = false
-					end
-					
-					if self._followingData then
-						for node, originalCF in pairs(self._followingData.originalNodePositions) do
-							if node.Parent then
-								node.CFrame = originalCF
-							end
-						end
-						
-						self._followingData.originalNodePositions = {}
-						self._followingData.currentRoomNodes = {}
-						self._followingData.isFollowing = false
-						
-						if self._followingData.roomChangedConnection then
-							self._followingData.roomChangedConnection:Disconnect()
-							self._followingData.roomChangedConnection = nil
-						end
 					end
 					
 					self.Model:Destroy()
@@ -1176,118 +1132,6 @@ spawner.Create = function(config)
                         UnlockAchievement(surviveAchievement)
                     end
 				end
-			end,
-			Respawn = function(self, delay)
-				if self.Model and self.Model.Parent then
-					warn("Cannot respawn entity: Entity is still alive.")
-					return false
-				end
-				
-				delay = delay or 0
-				
-				task.spawn(self.RunCallback, self, "OnRespawning") -- OnRespawning
-				
-				if self._followingData then
-					self._followingData.originalNodePositions = {}
-					self._followingData.currentRoomNodes = {}
-					self._followingData.isFollowing = false
-					if self._followingData.roomChangedConnection then
-						self._followingData.roomChangedConnection:Disconnect()
-						self._followingData.roomChangedConnection = nil
-					end
-				end
-				
-				local success, newModel = pcall(function()
-					local asset = self.Config.Entity.Asset
-					if typeof(asset) == "Instance" and asset:IsA("Model") then
-						return asset:Clone()
-					elseif typeof(asset) == "string" then
-						return LoadCustomInstance(asset)
-					end
-				end)
-				
-				if not success or not newModel then
-					warn("Failed to load entity model for respawn.")
-					return false
-				end
-				
-				local root = newModel.PrimaryPart or newModel:FindFirstChildWhichIsA("BasePart")
-				if root then
-					root.Anchored = true
-					newModel.PrimaryPart = root
-					newModel.Name = self.Config.Entity.Name
-					
-					for name, value in defaultEntityAttributes do
-						newModel:SetAttribute(name, value)
-					end
-					
-					if self._respawnData.wasNormalDespawn then
-						local latestRoom = gameData.LatestRoom.Value
-						local nextRoom = workspace.CurrentRooms:FindFirstChild(tostring(latestRoom + 1))
-						
-						if nextRoom then
-							local pathfindNodes = nextRoom:FindFirstChild("PathfindNodes")
-							if pathfindNodes then
-								local node1 = pathfindNodes:FindFirstChild("1")
-								if node1 then
-									newModel:PivotTo(node1.CFrame + Vector3.new(0, self.Config.Entity.HeightOffset, 0))
-									
-									if self.Config.Movement.Reversed then
-										self.Config.Movement.Reversed = false
-									end
-								else
-									warn("Node '1' not found in PathfindNodes, using original position.")
-									newModel:PivotTo(self._respawnData.lastPosition)
-								end
-							else
-								warn("PathfindNodes not found in room, using original position.")
-								newModel:PivotTo(self._respawnData.lastPosition)
-							end
-						else
-							warn("Next room not found, using original position.")
-							newModel:PivotTo(self._respawnData.lastPosition)
-						end
-					else
-						newModel:PivotTo(self._respawnData.lastPosition)
-						self.Config.Movement.Reversed = self._respawnData.originalReversed
-					end
-					
-					if self._respawnData.lastRoom then
-						newModel:SetAttribute("LastEnteredRoom", self._respawnData.lastRoom)
-					end
-					
-					-- RoomsEntered folder
-					local f = Instance.new("Configuration")
-					f.Name = "RoomsEntered"
-					f.Parent = newModel
-				end
-				
-				self.Model = newModel
-				self.Model.Parent = workspace
-				
-				self._respawnData.wasNormalDespawn = false
-				
-				if delay > 0 then
-					self.Model:SetAttribute("Paused", true)
-					
-					task.spawn(function()
-						local startTime = tick()
-						while tick() - startTime < delay do
-							task.wait()
-						end
-						
-						self.Model:SetAttribute("Paused", false)
-						
-						task.spawn(self.RunCallback, self, "OnRespawned") -- OnRespawned
-						
-						self:Run()
-					end)
-				else
-					task.spawn(self.RunCallback, self, "OnRespawned") -- OnRespawned
-					self:Run()
-				end
-				
-				return true
 			end
 		}
 		
@@ -1440,7 +1284,7 @@ spawner.Run = function(entityTable)
 						do
 							local c = config.Crucifixion
 							if c.Enabled and c.Range > 0 and (charPivot.Position - pivot.Position).Magnitude <= c.Range and inSight then
-								local hasTool, tool = PlayerHasItemEquipped("Crucifix")
+								local hasTool, tool = PlayerHasItemEquipped(c.Tool.Name or "Crucifix")
 								if hasTool and tool and not model:GetAttribute("BeingBanished") then
 									-- Crucifixion
 									if typeof(debug.CrucifixionOverwrite) == "function" then
@@ -1459,6 +1303,14 @@ spawner.Run = function(entityTable)
 							local c = config.Damage
 							if c.Enabled and c.Range > 0 and localHum.Health > 0 and not localChar:GetAttribute("Hiding") and model:GetAttribute("Damage") and not model:GetAttribute("BeingBanished") and (charPivot.Position - pivot.Position).Magnitude <= c.Range and inSight then
 								model:SetAttribute("Damage", false)
+								if c.Killed then
+								    if replicatesignal then
+		                                replicatesignal(localPlayer.Kill)
+		                            else
+		                                localHum.Health = 0
+		                                warn("replicatesignal not supported, set health.")
+		                            end
+								end
 								DamagePlayer(entityTable)
 							end
 						end
@@ -1487,103 +1339,17 @@ spawner.Run = function(entityTable)
 			
 			-- Pathfinding
 			task.spawn(function()
-				local function setupFollowing()
-					if config.Movement.Following.Enabled and config.Movement.Following.Speed > 0 then
-						entityTable._followingData.isFollowing = true
-						
-						local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(localPlayer:GetAttribute("CurrentRoom")))
-						if currentRoom then
-							local pathfindNodes = currentRoom:FindFirstChild("PathfindNodes")
-							if pathfindNodes then
-								entityTable._followingData.originalNodePositions = {}
-								entityTable._followingData.currentRoomNodes = {}
-								
-								for _, node in ipairs(pathfindNodes:GetChildren()) do
-									if node:IsA("BasePart") then
-										entityTable._followingData.originalNodePositions[node] = node.CFrame
-										entityTable._followingData.currentRoomNodes[node] = true
-										node.CFrame = CFrame.new(localChar.HumanoidRootPart.Position)
-									end
-								end
-								
-								if not entityTable._followingData.roomChangedConnection then
-									entityTable._followingData.roomChangedConnection = localPlayer:GetAttributeChangedSignal("CurrentRoom"):Connect(function()
-										for node, originalCF in pairs(entityTable._followingData.originalNodePositions) do
-											if node.Parent then
-												node.CFrame = originalCF
-											end
-										end
-										
-										entityTable._followingData.originalNodePositions = {}
-										entityTable._followingData.currentRoomNodes = {}
-										
-										if entityTable._followingData.isFollowing then
-											local newRoom = workspace.CurrentRooms:FindFirstChild(tostring(localPlayer:GetAttribute("CurrentRoom")))
-											if newRoom then
-												local newPathfindNodes = newRoom:FindFirstChild("PathfindNodes")
-												if newPathfindNodes then
-													for _, node in ipairs(newPathfindNodes:GetChildren()) do
-														if node:IsA("BasePart") then
-															entityTable._followingData.originalNodePositions[node] = node.CFrame
-															entityTable._followingData.currentRoomNodes[node] = true
-															node.CFrame = CFrame.new(localChar.HumanoidRootPart.Position)
-														end
-													end
-												end
-											end
-										end
-									end)
-								end
-							end
-						end
-					end
-				end
-
-				local function cleanupFollowing()
-					entityTable._followingData.isFollowing = false
-					
-					for node, originalCF in pairs(entityTable._followingData.originalNodePositions) do
-						if node.Parent then
-							node.CFrame = originalCF
-						end
-					end
-					
-					entityTable._followingData.originalNodePositions = {}
-					entityTable._followingData.currentRoomNodes = {}
-					
-					if entityTable._followingData.roomChangedConnection then
-						entityTable._followingData.roomChangedConnection:Disconnect()
-						entityTable._followingData.roomChangedConnection = nil
-					end
-				end
-
-				local function checkNodeReachedInFollowing(model, node)
-					if not entityTable._followingData.isFollowing then
-						return false
-					end
-					
-					local distance = (model:GetPivot().Position - node.Position).Magnitude
-					return distance < 2
-				end
-
-				setupFollowing()
-				
 				local reboundType = config.Rebounding.Type:lower()
 				if reboundType == "blitz" then
 					-- Blitz rebounding
 					local nodesToCurrent, nodesToEnd = GetPathfindNodesBlitz(config)
 					
-					local movementSpeed = config.Movement.Following.Enabled and config.Movement.Following.Speed > 0 and config.Movement.Following.Speed or config.Movement.Speed
+					local movementSpeed = config.Movement.Speed
 
 					for _, n in nodesToCurrent do
 						local cframe = n.CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
 						EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 						task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
-						
-						if entityTable._followingData.isFollowing and checkNodeReachedInFollowing(model, n) then
-							cleanupFollowing()
-							break
-						end
 					end
 					
 					-- Rebounding handling
@@ -1643,17 +1409,12 @@ spawner.Run = function(entityTable)
 					-- Ambush rebounding
 					local pathfindNodes = GetPathfindNodesAmbush(config)
 					
-					local movementSpeed = config.Movement.Following.Enabled and config.Movement.Following.Speed > 0 and config.Movement.Following.Speed or config.Movement.Speed
+					local movementSpeed = config.Movement.Speed
 
 					for _, n in pathfindNodes do
 						local cframe = n.CFrame + Vector3.new(0, 3 + config.Entity.HeightOffset, 0)
 						EntityMoveTo(model, cframe, movementSpeed, config, entityTable)
 						task.spawn(entityTable.RunCallback, entityTable, "OnReachNode", n) -- OnReachNode
-						
-						if entityTable._followingData.isFollowing and checkNodeReachedInFollowing(model, n) then
-							cleanupFollowing()
-							break
-						end
 					end
 					
 					-- Rebounding handling
@@ -1697,10 +1458,6 @@ spawner.Run = function(entityTable)
 				-- Despawning
 				if not model:GetAttribute("Despawning") then
 					model:SetAttribute("Despawning", true)
-					
-					entityTable._respawnData.lastPosition = model:GetPivot()
-					entityTable._respawnData.lastRoom = model:GetAttribute("LastEnteredRoom")
-					entityTable._respawnData.originalReversed = config.Movement.Reversed
 					
 					task.spawn(entityTable.RunCallback, entityTable, "OnDespawning") -- OnDespawning
 					EntityMoveTo(model, model:GetPivot() - Vector3.new(0, 300, 0), config.Movement.Speed)
