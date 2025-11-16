@@ -87,7 +87,7 @@ local defaultDebug = {
 local defaultConfig = {
 	Entity = {
 		Name = "Template Entity",
-		Asset = "https://github.com/RegularVynixu/Utilities/blob/patch-1/Doors%20Entity%20Spawner/Models/Rush.rbxm?raw=true",
+		Asset = "https://github.com/Focuslol666/Utilities/blob/patch-1/Doors%20Entity%20Spawner/Models/Rush.rbxm?raw=true",
 		HeightOffset = 0
 	},
 	Movement = {
@@ -451,7 +451,6 @@ function CrucifixEntity(entityTable, tool)
 	local config = entityTable.Config
 
 	local resist = config.Crucifixion.Resist
-
     local crucifixAchievement = config.Achievements.Crucifix
 
 	local toolPivot = tool:GetPivot()
@@ -481,7 +480,6 @@ function CrucifixEntity(entityTable, tool)
 
 	-- Setup
 	model:SetAttribute("BeingBanished", true)
-
     task.spawn(entityTable.RunCallback, entityTable, "OnCrucified", resist) -- OnCrucified
 
 	local repentance = assets.Repentance:Clone()
@@ -491,6 +489,17 @@ function CrucifixEntity(entityTable, tool)
 	local entityPart = repentance.Entity
 	local sound = (config.Crucifixion.Resist and crucHandle.SoundFail or crucHandle.Sound)
 	local shaker = moduleScripts.Main_Game.camShaker:StartShake(5, 20, 2, Vector3.new())
+
+	local toolConfig = config.Crucifixion.Tool
+	local guidingColor = colourGuiding
+	local curiousColor = colourCurious
+	
+	if toolConfig.EffectGuiding and typeof(toolConfig.EffectGuiding) == "Color3" then
+		guidingColor = toolConfig.EffectGuiding
+	end
+	if toolConfig.EffectCurious and typeof(toolConfig.EffectCurious) == "Color3" then
+		curiousColor = toolConfig.EffectCurious
+	end
 
 	local function waitUntil(t)
 		repeat RunService.RenderStepped:Wait() until sound.TimePosition >= t
@@ -543,10 +552,10 @@ function CrucifixEntity(entityTable, tool)
 		if config.Crucifixion.Type:lower() == "curious" then
 		    task.spawn(function()
                 local color = Instance.new("Color3Value")
-                color.Value = colourGuiding
+                color.Value = guidingColor
 
                 local tween = TweenService:Create(color, TweenInfo.new(1.5, Enum.EasingStyle.Sine), { 
-                    Value = Color3.fromRGB(253, 255, 133)
+                    Value = curiousColor
                 })
                 tween:Play()
 
@@ -572,6 +581,25 @@ function CrucifixEntity(entityTable, tool)
                     task.wait()
                 end
             end)
+        else
+            for _, d in repentance:GetDescendants() do
+                if d.ClassName == "Beam" or d.ClassName == "ParticleEmitter" then
+                    d.Color = ColorSequence.new{
+                        ColorSequenceKeypoint.new(0, guidingColor),
+                        ColorSequenceKeypoint.new(1, guidingColor)
+                    }
+                elseif d.Name == "Glow" then
+                    d.Color = guidingColor
+                end
+            end
+
+            if pentagram.Base.LightAttach.LightBright then
+                pentagram.Base.LightAttach.LightBright.Color = guidingColor
+            end
+
+            if crucHandle.Light then
+                crucHandle.Light.Color = guidingColor
+            end
         end
             
 		TweenService:Create(pentagram.Base.LightAttach.LightBright, TweenInfo.new(1.5, Enum.EasingStyle.Circular, Enum.EasingDirection.InOut), {
@@ -613,7 +641,7 @@ function CrucifixEntity(entityTable, tool)
 		shaker:StartFadeOut(3)
 		task.spawn(function()
 			local color = Instance.new("Color3Value")
-			color.Value = Color3.fromRGB(137, 207, 255)
+			color.Value = guidingColor
 
 			local tween = TweenService:Create(color, TweenInfo.new(0.5, Enum.EasingStyle.Sine), { Value = Color3.fromRGB(255, 116, 130) })
 			tween:Play()
@@ -734,123 +762,151 @@ function CreateJumpscare(jumpscareConfig)
 	end)
 end
 
+function SetDeathHints(entityTable)
+	local config = entityTable.Config
+	local deathHints = config.Death.Hints
+	local deathType = config.Death.Type
+	local deathCause = config.Death.Cause
+
+	if config.Death.IsolationFloors then
+		local currentFloor = gameData.Floor.Value
+		local floorConfig = config.Death.Floors[currentFloor]
+		local subfloorConfig = config.Death.Subfloors[currentFloor]
+
+		if floorConfig and #floorConfig.Hints > 0 then
+			deathHints = floorConfig.Hints
+			deathType = floorConfig.Type
+			if floorConfig.Cause ~= "" then
+				deathCause = floorConfig.Cause
+			end
+		elseif subfloorConfig and #subfloorConfig.Hints > 0 then
+			deathHints = subfloorConfig.Hints
+			deathType = subfloorConfig.Type
+			if subfloorConfig.Cause ~= "" then
+				deathCause = subfloorConfig.Cause
+			end
+		elseif currentFloor == "Garden" then
+			local outdoorsConfig = config.Death.Subfloors.Outdoors
+			if outdoorsConfig and #outdoorsConfig.Hints > 0 then
+				deathHints = outdoorsConfig.Hints
+				deathType = outdoorsConfig.Type
+				if outdoorsConfig.Cause ~= "" then
+					deathCause = outdoorsConfig.Cause
+				end
+			end
+		else
+			if currentFloor ~= "Hotel" and currentFloor ~= "Mines" and currentFloor ~= "Backdoor" and currentFloor ~= "Rooms" and currentFloor ~= "Garden" then
+				warn("Error Floor: "..currentFloor.." does not exist and has been switched to the default death hints.")
+			end
+		end
+	end
+	
+	if #deathHints > 0 then
+		-- Get death type
+		local colour;
+		for name, values in deathTypes do
+			if table.find(values, deathType:lower()) then
+				colour = name
+			end
+		end
+		if not colour then
+			for _, c in playerGui.MainUI.Initiator.Main_Game.Health.Music:GetChildren() do
+				if c.Name:lower() == deathType:lower() then
+					colour = c.Name
+				end
+			end
+		end
+		if not colour then
+			colour = "Blue"
+		end
+		
+		-- Set death hints and type (thanks oogy)
+		if firesignal then
+			firesignal(remotesFolder.DeathHint.OnClientEvent, deathHints, colour)
+		else
+			warn("firesignal not supported, ignore death hints.")
+		end
+	end
+
+	-- Set death cause
+	if deathCause == "" then
+		deathCause = config.Entity.Name
+	end
+	gameStats["Player_".. localPlayer.Name].Total.DeathCause.Value = deathCause
+end
+
 function DamagePlayer(entityTable)
 	if localHum.Health > 0 and not PlayerIsProtected() then
 		local config = entityTable.Config
 		local deathAchievement = config.Achievements.Death
 		
-		local damageAmount;
-		
-		if config.Damage.Random.Enabled then
-			damageAmount = math.random(config.Damage.Random.Min, config.Damage.Random.Max)
-		else
-			damageAmount = config.Damage.Amount
-		end
-		
-		damageAmount = math.max(0, damageAmount)
-		
-		local newHealth;
-		
-		if config.Damage.Withered then
-			damageAmount = math.max(1, damageAmount)
-			
-			local newMaxHealth = math.max(0, localHum.MaxHealth - damageAmount)
-			localHum.MaxHealth = newMaxHealth
-			
-			if localHum.Health > newMaxHealth then
-				localHum.Health = newMaxHealth
+		if config.Damage.Killed then
+			if replicatesignal then
+				replicatesignal(localPlayer.Kill)
+			else
+				warn("replicatesignal not supported, set Health to 0.")
+				localHum.Health = 0
+				localPlayer:SetAttribute("Alive", false)
 			end
 			
-			newHealth = localHum.Health
-		else
-			newHealth = math.clamp(localHum.Health - damageAmount, 0, localHum.MaxHealth)
-			localHum.Health = newHealth
-		end
-
-	    if newHealth == 0 then
-	        localPlayer:SetAttribute("Alive", false)
-		        
-		    -- Jumpscare
-		    if config.Jumpscare.Enabled then
+			-- Jumpscare
+			if config.Jumpscare.Enabled then
 				CreateJumpscare(config.Jumpscare)
 			end
-		    
-		    -- Achievement
-		    UnlockAchievement(deathAchievement)
-
-			-- Death hints
-			local deathHints = config.Death.Hints
-			local deathType = config.Death.Type
-			local deathCause = config.Death.Cause
-
-			if config.Death.IsolationFloors then
-			    local currentFloor = gameData.Floor.Value
-			    local floorConfig = config.Death.Floors[currentFloor]
-			    local subfloorConfig = config.Death.Subfloors[currentFloor]
-
-			    if floorConfig and #floorConfig.Hints > 0 then
-			        deathHints = floorConfig.Hints
-			        deathType = floorConfig.Type
-		            if floorConfig.Cause ~= "" then
-			            deathCause = floorConfig.Cause
-			        end
-			    elseif subfloorConfig and #subfloorConfig.Hints > 0 then
-			        deathHints = subfloorConfig.Hints
-			        deathType = subfloorConfig.Type
-			        if subfloorConfig.Cause ~= "" then
-			            deathCause = subfloorConfig.Cause
-			        end
-			    elseif currentFloor == "Garden" then
-			        local outdoorsConfig = config.Death.Subfloors.Outdoors
-			        if outdoorsConfig and #outdoorsConfig.Hints > 0 then
-			            deathHints = outdoorsConfig.Hints
-			            deathType = outdoorsConfig.Type
-			            if outdoorsConfig.Cause ~= "" then
-			                deathCause = outdoorsConfig.Cause
-			            end
-			        end
-			    else
-			        if currentFloor ~= "Hotel" or currentFloor ~= "Mines" or currentFloor ~= "Backdoor" or currentFloor ~= "Rooms" or currentFloor ~= "Garden" then
-			            warn("Error Floor: "..currentFloor.." does not exist and has been switched to the default death hints.")
-			        end
-			    end
+			
+			-- Achievement
+			UnlockAchievement(deathAchievement)
+			
+			-- Death hints & Cause
+			SetDeathHints(entityTable)
+			
+			task.spawn(entityTable.RunCallback, entityTable, "OnDamagePlayer", 0, 0, false) -- OnDamagePlayer
+		else
+			local damageAmount;
+			
+			if config.Damage.Random.Enabled then
+				damageAmount = math.random(config.Damage.Random.Min, config.Damage.Random.Max)
+			else
+				damageAmount = config.Damage.Amount
 			end
 			
-			if #deathHints > 0 then
-				-- Get death type
-				local colour;
-				for name, values in deathTypes do
-					if table.find(values, deathType:lower()) then
-						colour = name
-					end
-				end
-				if not colour then
-					for _, c in playerGui.MainUI.Initiator.Main_Game.Health.Music:GetChildren() do
-						if c.Name:lower() == deathType:lower() then
-							colour = c.Name
-						end
-					end
-				end
-				if not colour then
-					colour = "Blue"
+			damageAmount = math.max(0, damageAmount)
+			
+			local newHealth;
+			
+			if config.Damage.Withered then
+				damageAmount = math.max(1, damageAmount)
+				
+				local newMaxHealth = math.max(0, localHum.MaxHealth - damageAmount)
+				localHum.MaxHealth = newMaxHealth
+				
+				if localHum.Health > newMaxHealth then
+					localHum.Health = newMaxHealth
 				end
 				
-				-- Set death hints and type (thanks oogy)
-				if firesignal then
-					firesignal(remotesFolder.DeathHint.OnClientEvent, deathHints, colour)
-				else
-					warn("firesignal not supported, ignore death hints.")
+				newHealth = localHum.Health
+			else
+				newHealth = math.clamp(localHum.Health - damageAmount, 0, localHum.MaxHealth)
+				localHum.Health = newHealth
+			end
+
+			if newHealth == 0 then
+				localPlayer:SetAttribute("Alive", false)
+					
+				-- Jumpscare
+				if config.Jumpscare.Enabled then
+					CreateJumpscare(config.Jumpscare)
 				end
+				
+				-- Achievement
+				UnlockAchievement(deathAchievement)
+
+                -- Death hints & Cause
+				SetDeathHints(entityTable)
 			end
 
-			-- Set death cause
-			if deathCause == "" then
-			    deathCause = config.Entity.Name
-			end
-			gameStats["Player_".. localPlayer.Name].Total.DeathCause.Value = deathCause
+			task.spawn(entityTable.RunCallback, entityTable, "OnDamagePlayer", newHealth, damageAmount, config.Damage.Withered) -- OnDamagePlayer
 		end
-
-		task.spawn(entityTable.RunCallback, entityTable, "OnDamagePlayer", newHealth, damageAmount, config.Damage.Withered) -- OnDamagePlayer
 	end
 end
 
@@ -1284,7 +1340,12 @@ spawner.Run = function(entityTable)
 						do
 							local c = config.Crucifixion
 							if c.Enabled and c.Range > 0 and (charPivot.Position - pivot.Position).Magnitude <= c.Range and inSight then
-								local hasTool, tool = PlayerHasItemEquipped(c.Tool.Name or "Crucifix")
+                                local t = c.Tool
+                                local toolName = "Crucifix"
+                                if t.Name and typeof(t.Name) == "string" and t.Name ~= "" then
+                                    toolName = t.Name
+                                end
+                                local hasTool, tool = PlayerHasItemEquipped(toolName)
 								if hasTool and tool and not model:GetAttribute("BeingBanished") then
 									-- Crucifixion
 									if typeof(debug.CrucifixionOverwrite) == "function" then
@@ -1303,14 +1364,6 @@ spawner.Run = function(entityTable)
 							local c = config.Damage
 							if c.Enabled and c.Range > 0 and localHum.Health > 0 and not localChar:GetAttribute("Hiding") and model:GetAttribute("Damage") and not model:GetAttribute("BeingBanished") and (charPivot.Position - pivot.Position).Magnitude <= c.Range and inSight then
 								model:SetAttribute("Damage", false)
-								if c.Killed then
-								    if replicatesignal then
-		                                replicatesignal(localPlayer.Kill)
-		                            else
-		                                localHum.Health = 0
-		                                warn("replicatesignal not supported, set health.")
-		                            end
-								end
 								DamagePlayer(entityTable)
 							end
 						end

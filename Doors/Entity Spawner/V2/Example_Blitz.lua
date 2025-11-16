@@ -7,7 +7,7 @@ local spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/Focus
 local entity = spawner.Create({
 	Entity = {
 		Name = "Blitz Example",
-		Asset = "https://github.com/RegularVynixu/Utilities/raw/patch-1/Doors/Entity%20Spawner/Assets/Entities/BackdoorRush.rbxm",
+		Asset = "https://github.com/Focuslol666/Utilities/raw/patch-1/Doors/Entity%20Spawner/Assets/Entities/BackdoorRush.rbxm",
 		HeightOffset = 0
 	},
 	Lights = {
