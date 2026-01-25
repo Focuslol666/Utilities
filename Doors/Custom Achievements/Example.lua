@@ -10,6 +10,7 @@ achievementGiver({
     Prize = {
         Revives = 1,
         Knobs = 100,
-        Stardust = 20
+        Stardust = 20,
+        Items = {}
     }
 })
